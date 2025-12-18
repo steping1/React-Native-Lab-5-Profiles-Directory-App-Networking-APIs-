@@ -1,7 +1,7 @@
 # Profiles Directory App
 
-**Student Name:** [YOUR NAME HERE]  
-**Student ID:** [YOUR STUDENT ID HERE]  
+**Student Name:** [Mehmet Akif Yılmaz]  
+**Student ID:** [220408800]  
 **Course:** Mobile Programming - Lab 10 / React Native Lab 5
 
 ## 📱 Project Overview
