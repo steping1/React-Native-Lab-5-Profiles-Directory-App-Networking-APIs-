@@ -1,31 +1,47 @@
 import { useEffect, useState } from 'react';
-import { View, Text, FlatList, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, FlatList, Pressable, StyleSheet, ActivityIndicator,RefreshControl } from 'react-native';
 import { api } from '../api/client';
 
 export default function ProfilesListScreen({ navigation }) {
   const [profiles, setProfiles] = useState([]);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const [hasMore, setHasMore] = useState(true);
+  const [refreshing, setRefreshing] = useState(false); 
 
-  const fetchProfiles = async () => {
-    if (loading || !hasMore) return; 
+  const fetchProfiles = async (pageToFetch = page, shouldRefresh = false) => {
+    if (loading && !shouldRefresh) return;
     setLoading(true);
+    setError(null);
 
     try {
-      const res = await api.get(`/profiles?page=${page}&limit=10`);
-
+      const res = await api.get(`/profiles?page=${pageToFetch}&limit=10`);
+      
       if (res.data.length === 0) {
-        setHasMore(false); 
+        setHasMore(false);
       } else {
-        setProfiles(prev => [...prev, ...res.data]); 
-        setPage(prev => prev + 1); 
+        if (shouldRefresh) {
+            setProfiles(res.data); 
+        } else {
+            setProfiles(prev => [...prev, ...res.data]); 
+        }
+        setPage(prev => prev + 1);
       }
     } catch (err) {
-      console.error(err);
+      setError(err.message || 'Failed to load profiles.');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    setHasMore(true);
+    setPage(1); 
+    setProfiles([]); 
+    await fetchProfiles(1, true); 
   };
 
   useEffect(() => {
@@ -33,9 +49,33 @@ export default function ProfilesListScreen({ navigation }) {
   }, []);
 
   const renderFooter = () => {
-    if (!loading) return null;
-    return <ActivityIndicator size="large" color="#007AFF" style={styles.footer} />;
+    if (!loading || refreshing) return null; 
+    return (
+        <View style={styles.footer}>
+             <ActivityIndicator size="large" color="#007AFF" />
+        </View>
+    );
   };
+
+  const renderEmpty = () => {
+    if (loading) return null;
+    return (
+      <View style={styles.centerContainer}>
+        <Text style={styles.errorText}>No profiles found</Text>
+      </View>
+    );
+  };
+
+  if (error && profiles.length === 0) {
+      return (
+        <View style={styles.centerContainer}>
+          <Text style={styles.errorText}>{error}</Text>
+          <Pressable style={styles.retryButton} onPress={() => fetchProfiles(1, true)}>
+            <Text style={styles.retryText}>Retry</Text>
+          </Pressable>
+        </View>
+      );
+  }
 
   return (
     <View style={styles.container}>
@@ -51,10 +91,16 @@ export default function ProfilesListScreen({ navigation }) {
             <Text style={styles.email}>{item.email}</Text>
           </Pressable>
         )}
-        onEndReached={fetchProfiles}
+        onEndReached={() => {
+            if(hasMore && !loading) fetchProfiles();
+        }}
         onEndReachedThreshold={0.5}
         ListFooterComponent={renderFooter}
+        ListEmptyComponent={renderEmpty} 
         contentContainerStyle={styles.listContent}
+        refreshControl={ 
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
       />
     </View>
   );
@@ -62,9 +108,13 @@ export default function ProfilesListScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f5f5f5' },
-  listContent: { padding: 16 },
+  listContent: { padding: 16, flexGrow: 1 },
   card: { backgroundColor: 'white', padding: 16, marginBottom: 12, borderRadius: 8, elevation: 3 },
-  name: { fontSize: 18, fontWeight: 'bold' },
+  name: { fontSize: 18, fontWeight: 'bold', color: '#333' },
   email: { color: '#666' },
-  footer: { paddingVertical: 20 }
+  footer: { paddingVertical: 20 },
+  centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
+  errorText: { fontSize: 16, color: '#d32f2f', textAlign: 'center', marginBottom: 16 },
+  retryButton: { backgroundColor: '#007AFF', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 },
+  retryText: { color: 'white', fontSize: 16, fontWeight: '600' },
 });
